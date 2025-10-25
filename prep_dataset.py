@@ -1,3 +1,9 @@
+"""
+process & save dataset to tar shards
+takes ~3 hours on a Macbook
+can likely be sped-up significantly
+"""
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -12,12 +18,6 @@ from datasets import load_dataset
 import os, io, tarfile
 
 from clip import TextConfig, TextTokenizer
-
-# ------------------------------
-# process & save dataset to tar shards
-# takes ~3 hours on a Macbook
-# can likely be optimized significantly
-# ------------------------------
 
 max_images = 2097152
 img_size = 224
