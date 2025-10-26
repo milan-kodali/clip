@@ -269,6 +269,8 @@ class VisionEncoder(nn.Module):
 class CLIP(nn.Module):
     def __init__(self, text_config, vision_config):
         super().__init__()
+        self.text_config = text_config
+        self.vision_config = vision_config
         self.text_decoder = TextDecoder(text_config)
         self.vision_encoder = VisionEncoder(vision_config)
         # learnable temperature parameter (initialized to match CLIP)
