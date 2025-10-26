@@ -14,7 +14,7 @@ from torchvision import transforms
 # image to tensor
 itot = transforms.ToTensor()
 
-def preload_shard(shard_path):
+def load_shard(shard_path):
     data = {}
     with tarfile.open(shard_path, "r") as tar:
         for member in tar.getmembers():
@@ -47,7 +47,7 @@ class DataLoaderLite:
         
     def reset(self):
         self.shard_index = 0
-        self.data = preload_shard(self.shards[self.shard_index])
+        self.data = load_shard(self.shards[self.shard_index])
         self.files = sorted(self.data.keys())
         self.current_position = self.rank * (self.B * 2)
     
@@ -67,7 +67,7 @@ class DataLoaderLite:
 
     def next_shard(self):
         self.shard_index = (self.shard_index + 1) % self.shard_count
-        self.data = preload_shard(self.shards[self.shard_index])
+        self.data = load_shard(self.shards[self.shard_index])
         self.files = sorted(self.data.keys())
         self.current_position = self.rank * (self.B * 2)
 
@@ -86,17 +86,18 @@ if __name__ == "__main__":
     from clip import TextTokenizer, TextConfig
     enc = TextTokenizer(TextConfig())
     B = 4096
-    n_batches = 2
     torch.manual_seed(42)
-    print(f"loading & timing {n_batches} preview batches with B = {B}\n-----")
+    print(f"loading & timing a preview batch with B = {B}\n-----")
     start_time = time.time()
     train_loader = DataLoaderLite(B, 0, 1, split = 'train', verbose = True)
     end_time = time.time()
     print(f"⏱️ initializing DataLoaderLite took {end_time - start_time:.2f}s\n-----")
-    for _ in range(n_batches):
-        start_time = time.time()
-        images, labels = train_loader.next_batch()
-        print(f"> batch {_ + 1} shape: {images.shape}, {labels.shape}")
-        print(f"> preview of label from batch {_ + 1}: {enc.decode(labels[0])}")
-        end_time = time.time()
-        print(f"⏱️ batch {_ + 1} took {end_time - start_time:.2f}s\n-----")
+    # ignore warmup batch
+    images, labels = train_loader.next_batch()    
+    # timed batch
+    start_time = time.time()
+    images, labels = train_loader.next_batch()
+    print(f"> batch shape: {images.shape}, {labels.shape}")
+    print(f"> preview of label: {enc.decode(labels[0])}")
+    end_time = time.time()
+    print(f"⏱️ batch took {end_time - start_time:.2f}s")
