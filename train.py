@@ -34,6 +34,7 @@ logger.load_logs()
 
 torch.manual_seed(42)
 device = "cuda" if torch.cuda.is_available() else "mps" if hasattr(torch.backends, "mps") and torch.backends.mps.is_available() else "cpu"
+print(f"using device: {device}")
 ddp = False
 master_process = True
 
@@ -115,7 +116,7 @@ def evaluate(model, device, val_loader):
 print(f"training for {max_steps} steps")
 # baseline
 if start_step == 0:
-    logger.log(step=step+1, val_loss=evaluate(model, device, val_loader))
+    logger.log(step=0, val_loss=evaluate(model, device, val_loader))
 
 for step in range(start_step, max_steps):
     t0 = time.time()
