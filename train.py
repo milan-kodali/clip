@@ -3,9 +3,11 @@ import time
 import math
 import argparse
 import os
+
 from clip import CLIP, TextConfig, VisionConfig
 from dataloader import DataLoaderLite
 from checkpoint_manager import save_checkpoint, update_configs_from_checkpoint, load_checkpoint_state
+from logger import Logger
 
 # ------------------------------
 # checkpointing args
@@ -20,6 +22,10 @@ if args.checkpoint:
     checkpoint_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'clip_data', 'checkpoints')
     checkpoint_path = os.path.join(checkpoint_dir, args.checkpoint)
 
+# initialize logger
+run_name = args.checkpoint if args.checkpoint else 'default'
+logger = Logger(run_name=run_name)
+logger.load_logs()
 
 # ------------------------------
 # set up model, training params,
@@ -100,6 +106,7 @@ def evaluate(model, device, val_loader):
     dt = t1 - t0
     if master_process:
         print(f"-----\nval loss: {loss.item():.4f} | eval_time: {dt:.2f}s\n-----")
+    return loss.item()
 
 # ------------------------------
 # training loop
@@ -108,7 +115,7 @@ def evaluate(model, device, val_loader):
 print(f"training for {max_steps} steps")
 # baseline
 if start_step == 0:
-    evaluate(model, device, val_loader)
+    logger.log(step=step+1, val_loss=evaluate(model, device, val_loader))
 
 for step in range(start_step, max_steps):
     t0 = time.time()
@@ -134,8 +141,12 @@ for step in range(start_step, max_steps):
     t1 = time.time()
     dt = t1 - t0
     img_per_sec = (B * embed_accum_steps) / dt
-    print(f"step {step} |  trn_loss: {loss.item():.4f} | norm: {norm:.4f} | lr: {lr:.2e} | dt: {dt:.2f}s | img/s: {img_per_sec:.2f}")
-    if (step + 1) % 10 == 0:
-        evaluate(model, device, val_loader)
-        if checkpoint_path and master_process:
-            save_checkpoint(checkpoint_path, model, optimizer, step, train_loader, device)
+    if master_process:
+        print(f"step {step} |  trn_loss: {loss.item():.4f} | norm: {norm:.4f} | lr: {lr:.2e} | dt: {dt:.2f}s | img/s: {img_per_sec:.2f}")
+        logger.log(step=step+1, train_loss=loss.item(), lr=lr, grad_norm=norm, dt=dt, imgs_per_sec=img_per_sec)
+        if (step + 1) % 10 == 0:
+            logger.log(step=step+1, val_loss=evaluate(model, device, val_loader))
+            logger.save_plot()
+            if checkpoint_path:
+                save_checkpoint(checkpoint_path, model, optimizer, step, train_loader, device)
+                

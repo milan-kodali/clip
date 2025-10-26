@@ -40,7 +40,7 @@ class DataLoaderLite:
         self.shards = sorted(shards)
         self.shard_count = len(self.shards)
         assert self.shard_count > 0, f"no shards found for {split} split"
-        if self.verbose: print(f"Found {len(self.shards)} shards for {split} split")
+        if self.verbose: print(f"found {len(self.shards)} shards for {split} split")
 
         # set initial state
         self.reset()
