@@ -34,7 +34,7 @@ class DataLoaderLite:
         assert split in ['train', 'val'], "split must be either 'train' or 'val'"
         self.split = split
 
-        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'data', 'text-to-image-2M')
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'clip_data', 'text-to-image-2M')
         shards = [f for f in os.listdir(data_dir) if f.startswith(f'text_to_image_{self.split}') and f.endswith('.tar')]
         shards = [os.path.join(data_dir, f) for f in shards]
         self.shards = sorted(shards)
@@ -50,6 +50,18 @@ class DataLoaderLite:
         self.data = load_shard(self.shards[self.shard_index])
         self.files = sorted(self.data.keys())
         self.current_position = self.rank * (self.B * 2)
+    
+    def get_state(self):
+        return {
+            'shard_index': self.shard_index,
+            'current_position': self.current_position,
+        }
+    
+    def load_state(self, state):
+        self.shard_index = state['shard_index']
+        self.current_position = state['current_position']
+        self.data = load_shard(self.shards[self.shard_index], verbose=self.verbose)
+        self.files = sorted(self.data.keys())
     
     def next_batch(self):
         B = self.B
