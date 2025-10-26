@@ -59,11 +59,11 @@ class DataLoaderLite:
             token_name = self.files[self.current_position + i*2 + 1]
             img = Image.open(io.BytesIO(self.data[img_name]))
             images.append(itot(img))
-            tokens.append(torch.load(io.BytesIO(self.data[token_name])))
-        x = torch.stack(images)
-        y = torch.stack(tokens)
+            tokens.append(torch.load(io.BytesIO(self.data[token_name]), map_location='cpu'))
+        labels = torch.stack(tokens)
+        images = torch.stack(images)
         self.step(1)
-        return x, y
+        return labels, images
 
     def next_shard(self):
         self.shard_index = (self.shard_index + 1) % self.shard_count
@@ -93,10 +93,10 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"⏱️ initializing DataLoaderLite took {end_time - start_time:.2f}s\n-----")
     # discard warmup batch
-    images, labels = train_loader.next_batch()    
+    labels, images = train_loader.next_batch()    
     # timed batch
     start_time = time.time()
-    images, labels = train_loader.next_batch()
+    labels, images = train_loader.next_batch()
     print(f"> batch shape: {images.shape}, {labels.shape}")
     print(f"> preview of label: {enc.decode(labels[0])}")
     end_time = time.time()
