@@ -14,14 +14,14 @@ from torchvision import transforms
 # image to tensor
 itot = transforms.ToTensor()
 
-def load_shard(shard_path):
+def load_shard(shard_path, verbose = False):
     data = {}
     with tarfile.open(shard_path, "r") as tar:
         for member in tar.getmembers():
             if member.isfile():
                 f = tar.extractfile(member)
                 data[member.name] = f.read()
-    print(f"loaded {len(data)} files ({len(data) // 2} image-text pairs) from {shard_path.split('/')[-1]}\n-----")
+    if verbose: print(f"loaded {len(data)} files ({len(data) // 2} image-text pairs) from {shard_path.split('/')[-1]}\n-----")
     return data
 
 class DataLoaderLite:
@@ -40,7 +40,7 @@ class DataLoaderLite:
         self.shards = sorted(shards)
         self.shard_count = len(self.shards)
         assert self.shard_count > 0, f"no shards found for {split} split"
-        if self.verbose: print(f"found {len(self.shards)} shards for {split} split\n-----")
+        if self.verbose: print(f"Found {len(self.shards)} shards for {split} split")
 
         # set initial state
         self.reset()
@@ -67,7 +67,7 @@ class DataLoaderLite:
 
     def next_shard(self):
         self.shard_index = (self.shard_index + 1) % self.shard_count
-        self.data = load_shard(self.shards[self.shard_index])
+        self.data = load_shard(self.shards[self.shard_index], verbose = self.verbose)
         self.files = sorted(self.data.keys())
         self.current_position = self.rank * (self.B * 2)
 
