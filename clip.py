@@ -130,7 +130,7 @@ class TextDecoder(nn.Module):
         # Find first occurrence of eot_token_id (50256)
         # TODO: don't hardcode EOT token id
         eot_positions = (idx == 50256).int().argmax(dim=-1)  # (B,)
-        eot_token = x[torch.arange(x.shape[0]), eot_positions]  # (B, C = n_embd)
+        eot_token = x[torch.arange(x.shape[0], device=idx.device), eot_positions]  # (B, C = n_embd)
         out = self.proj(eot_token) # (B, C = out_dim)
         out = out / out.norm(dim=-1, keepdim=True) # normalize to unit length for cosine similarity
 
@@ -285,7 +285,7 @@ class CLIP(nn.Module):
         logit_scale = torch.clamp(self.logit_scale, max=np.log(100))
         logits = logit_scale.exp() * label_emb @ image_emb.T
         # compute contrastive loss
-        targets = torch.arange(logits.shape[0])
+        targets = torch.arange(logits.shape[0], device=logits.device)
         loss = (F.cross_entropy(logits, targets) + F.cross_entropy(logits.T, targets)) / 2.0
         return loss
 
