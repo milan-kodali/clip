@@ -92,7 +92,7 @@ if __name__ == "__main__":
     train_loader = DataLoaderLite(B, 0, 1, split = 'train', verbose = True)
     end_time = time.time()
     print(f"⏱️ initializing DataLoaderLite took {end_time - start_time:.2f}s\n-----")
-    # ignore warmup batch
+    # discard warmup batch
     images, labels = train_loader.next_batch()    
     # timed batch
     start_time = time.time()
