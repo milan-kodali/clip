@@ -5,9 +5,10 @@ import argparse
 import os
 from clip import CLIP, TextConfig, VisionConfig
 from dataloader import DataLoaderLite
+from checkpoint_manager import save_checkpoint, update_configs_from_checkpoint, load_checkpoint_state
 
 # ------------------------------
-# checkpointing code
+# checkpointing args
 # ------------------------------
 
 parser = argparse.ArgumentParser(description='Train CLIP model')
@@ -19,43 +20,6 @@ if args.checkpoint:
     checkpoint_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'clip_data', 'checkpoints')
     checkpoint_path = os.path.join(checkpoint_dir, args.checkpoint)
 
-def save_checkpoint(checkpoint_path, model, optimizer, step, train_loader):
-    if master_process:
-        checkpoint = {
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'step': step,
-            'train_loader_state': train_loader.get_state(),
-            'text_config': model.text_config.__dict__,
-            'vision_config': model.vision_config.__dict__,
-        }
-        # create directory if it doesn't exist
-        os.makedirs(os.path.dirname(checkpoint_path) if os.path.dirname(checkpoint_path) else '.', exist_ok=True)
-        torch.save(checkpoint, checkpoint_path)
-        print(f"checkpoint saved\n-----")
-
-def update_configs_from_checkpoint(checkpoint_path, text_config, vision_config):
-    if os.path.exists(checkpoint_path):
-        print(f"loading configs from checkpoint")
-        checkpoint = torch.load(checkpoint_path, map_location=device)
-        if 'text_config' in checkpoint and 'vision_config' in checkpoint:
-            # update configs from saved dicts
-            text_config.__dict__.update(checkpoint['text_config'])
-            vision_config.__dict__.update(checkpoint['vision_config'])
-            print(f"configs updated from checkpoint")
-
-def load_checkpoint_state(checkpoint_path, model, optimizer, train_loader):
-    if os.path.exists(checkpoint_path):
-        checkpoint = torch.load(checkpoint_path, map_location=device)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        step = checkpoint['step']
-        train_loader.load_state(checkpoint['train_loader_state'])
-        print(f"checkpoint loaded: resuming from step {step + 1}")
-        return step + 1
-    else:
-        print(f"no checkpoint found, starting from scratch")
-        return 0
 
 # ------------------------------
 # set up model, training params,
@@ -78,7 +42,7 @@ train_loader = DataLoaderLite(B, 0, 1, split = 'train', verbose = True)
 # load configs from checkpoint if available, otherwise use defaults
 text_config, vision_config = TextConfig(), VisionConfig()
 if checkpoint_path:
-    update_configs_from_checkpoint(checkpoint_path, text_config, vision_config)
+    update_configs_from_checkpoint(checkpoint_path, text_config, vision_config, device)
 
 # initialize model
 model = CLIP(text_config, vision_config)
@@ -109,7 +73,7 @@ def get_lr(step):
 # load checkpoint state if available
 start_step = 0
 if checkpoint_path:
-    start_step = load_checkpoint_state(checkpoint_path, model, optimizer, train_loader)
+    start_step = load_checkpoint_state(checkpoint_path, model, optimizer, train_loader, device)
 
 # ------------------------------
 # evaluate on val dataset
@@ -173,5 +137,5 @@ for step in range(start_step, max_steps):
     print(f"step {step} |  trn_loss: {loss.item():.4f} | norm: {norm:.4f} | lr: {lr:.2e} | dt: {dt:.2f}s | img/s: {img_per_sec:.2f}")
     if (step + 1) % 10 == 0:
         evaluate(model, device, val_loader)
-        if checkpoint_path:
-            save_checkpoint(checkpoint_path, model, optimizer, step, train_loader)
+        if checkpoint_path and master_process:
+            save_checkpoint(checkpoint_path, model, optimizer, step, train_loader, device)
