@@ -24,7 +24,7 @@ img_size = 224
 shard_size = 32768
 n_val_shard = 1
 
-shard_dir = "./.cache/data/text-to-image-2M"
+shard_dir = "./.cache/clip_data/text-to-image-2M"
 os.makedirs(shard_dir, exist_ok=True)
 
 text_config = TextConfig()
