@@ -1,3 +1,6 @@
+# set up local environment
+# run: `source setup_local_env.sh`
+
 # check if uv is installed; install it if not
 command -v uv &> /dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 # check if .venv dir exists; create a venv if not
