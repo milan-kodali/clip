@@ -274,13 +274,13 @@ class CLIP(nn.Module):
         # learnable temperature parameter (initialized to match CLIP)
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
-    def forward(self, labels, images):
+    def embed(self, labels, images):
         # embed labels & images
         label_emb = self.text_decoder(labels)
         image_emb = self.vision_encoder(images)
-        # normalize embeddings
-        label_emb = label_emb / label_emb.norm(dim=-1, keepdim=True)
-        image_emb = image_emb / image_emb.norm(dim=-1, keepdim=True)
+        return label_emb, image_emb
+    
+    def loss(self, label_emb, image_emb):
         # clamp temperature
         logit_scale = torch.clamp(self.logit_scale, max=np.log(100))
         logits = logit_scale.exp() * label_emb @ image_emb.T
@@ -288,6 +288,9 @@ class CLIP(nn.Module):
         targets = torch.arange(logits.shape[0], device=logits.device)
         loss = (F.cross_entropy(logits, targets) + F.cross_entropy(logits.T, targets)) / 2.0
         return loss
+
+    def forward(self, labels, images):
+        return self.loss(*self.embed(labels, images))
 
 
 # ------------------------------
