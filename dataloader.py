@@ -114,5 +114,5 @@ if __name__ == "__main__":
     end_time = time.time()
     print(f"⏱️ batch took {end_time - start_time:.2f}s")
 
-    # MacBook logs with B=4096:
-    # baseline: 1-1.5s init, 2s batch
+# MacBook logs with B=4096:
+# baseline: 1-1.5s init, 2s batch
