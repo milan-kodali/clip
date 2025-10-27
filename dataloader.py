@@ -100,19 +100,19 @@ if __name__ == "__main__":
     B = 4096
     torch.manual_seed(42)
     print(f"loading & timing a preview batch with B = {B}\n-----")
-    start_time = time.time()
-    train_loader = DataLoaderLite(B, 0, 1, split = 'train', verbose = True)
-    end_time = time.time()
-    print(f"⏱️ initializing DataLoaderLite took {end_time - start_time:.2f}s\n-----")
-    # discard warmup batch
-    labels, images = train_loader.next_batch()    
-    # timed batch
-    start_time = time.time()
-    labels, images = train_loader.next_batch()
-    print(f"> batch shape: {images.shape}, {labels.shape}")
-    print(f"> preview of label: {enc.decode(labels[0])}")
-    end_time = time.time()
-    print(f"⏱️ batch took {end_time - start_time:.2f}s")
-
-# MacBook logs with B=4096:
-# baseline: 1-1.5s init, 2s batch
+    t0 = time.time()
+    train_loader = DataLoaderLite(B = B, rank = 0, world_size = 1, split = 'train', verbose = True)
+    t1 = time.time()
+    print(f"⏱️ initializing DataLoaderLite took {t1 - t0:.2f}s\n-----")
+    # timed batches
+    batches = 10
+    for i in range(batches):
+        t0 = time.time()
+        labels, images = train_loader.next_batch() 
+        t1 = time.time()
+        print(f"⏱️ loading batch took {t1 - t0:.3f}s")
+        time.sleep(2) # simulate batch processing time
+        # preview last batch
+        if i == batches - 1:
+            print(f"> last batch shape: {images.shape}, {labels.shape}")
+            print(f"> last batch label preview: {enc.decode(labels[325])}\n")
