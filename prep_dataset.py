@@ -21,10 +21,10 @@ from clip import TextConfig, TextTokenizer
 
 max_images = 2097152
 img_size = 224
-shard_size = 32768
+shard_size = 32768 // 4 # smaller 8k image shards for testing
 n_val_shard = 1
 
-shard_dir = "./.cache/clip_data/text-to-image-2M"
+shard_dir = "./.cache/clip_data/text-to-image-2M-8k" # smaller shards for testing
 os.makedirs(shard_dir, exist_ok=True)
 
 text_config = TextConfig()
