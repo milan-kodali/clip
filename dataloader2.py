@@ -46,19 +46,23 @@ class DataLoader:
         self.prefetch_labels = None
         self.prefetch_future = None
         self.prefetch_executor = ThreadPoolExecutor(max_workers=1)
+        self.prefetch = True
 
         assert split in ['train', 'val'], "split must be either 'train' or 'val'"
         self.split = split
 
-        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'clip_data', 'text-to-image-2M')
+        # data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'clip_data', 'text-to-image-2M')
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'clip_data', 'text-to-image-2M-8k') # test smaller shards
         shards = [f for f in os.listdir(data_dir) if f.startswith(f'text_to_image_{self.split}') and f.endswith('.tar')]
         shards = [os.path.join(data_dir, f) for f in shards]
         self.shards = sorted(shards)
         self.shard_count = len(self.shards)
         assert self.shard_count > 0, f"no shards found for {split} split"
+        if self.shard_count == 1: 
+            self.prefetch = False # don't prefetch if only one shard
         if self.verbose: 
-            print(f"[dataloader] found {len(self.shards)} shards for {split} split")
-            print(f"[dataloader] using {n_proc} decoding threads")
+            print(f"[dataloader-{split}.{rank}] found {self.shard_count} shards for {split} split")
+            print(f"[dataloader-{split}.{rank}] using {n_proc} decoding threads")
         # set initial state
         self.reset()
 
@@ -71,11 +75,17 @@ class DataLoader:
         self.next_shard(reset=True)
 
     def next_shard(self, reset=False):
-        self.shard_index = 0 if reset else self.next_shard_index()
+        current_index = None
+        if hasattr(self, 'shard_index'):
+            current_index = self.shard_index
+        new_index = 0 if reset else self.next_shard_index()
+        self.shard_index = new_index
         self.current_position = self.rank * self.B
-        self.load_shard()
+        if current_index != new_index:
+            self.load_shard(prefetch=False)
         # background prefetch the next shard
-        self.prefetch_shard()
+        if self.prefetch:
+            self.prefetch_shard()
 
     def next_shard_index(self):
         return (self.shard_index + 1) % self.shard_count
@@ -109,7 +119,7 @@ class DataLoader:
             self.images, self.labels, self.shard_len = self.prefetch_images, self.prefetch_labels, self.prefetch_shard_len
             self.prefetch_images, self.prefetch_labels = tmp_images, tmp_labels
             self.prefetch_future = None
-            if self.verbose: print(f"[dataloader] loaded {self.shard_len} pairs from prefetched shard {self.shard_index+1}/{self.shard_count}")
+            if self.verbose: print(f"[dataloader-{self.split}.{self.rank}] loaded {self.shard_len} pairs from prefetched shard {self.shard_index+1}/{self.shard_count}")
         else:
             verbose = self.verbose
             shard_index = self.next_shard_index() if prefetch else self.shard_index
@@ -131,10 +141,10 @@ class DataLoader:
                     future.result()
             if prefetch:
                 self.prefetch_shard_len = shard_len
-                if self.verbose: print(f"[dataloader] prefetched {self.shard_len} pairs from shard {shard_index+1}/{self.shard_count}")
+                if self.verbose: print(f"[dataloader-{self.split}.{self.rank}] prefetched {self.shard_len} pairs from shard {shard_index+1}/{self.shard_count}")
             else:
                 self.shard_len = shard_len
-                if self.verbose: print(f"[dataloader] loaded {self.shard_len} pairs from shard {shard_index+1}/{self.shard_count}")
+                if self.verbose: print(f"[dataloader-{self.split}.{self.rank}] loaded {self.shard_len} pairs from shard {shard_index+1}/{self.shard_count}")
     
     def preallocate_tensors(self, shard_len, prefetch):
         """uses currently allocated tensors if possible, or pre-allocates to avoid ongoing allocation overhead"""
