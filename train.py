@@ -6,8 +6,11 @@ import os
 
 from clip import CLIP, TextConfig, VisionConfig
 from dataloader import DataLoaderLite
+from dataloader2 import DataLoader
 from checkpoint_manager import save_checkpoint, update_configs_from_checkpoint, load_checkpoint_state
 from logger import Logger
+
+t0 = time.time() # tracking init time
 
 # ------------------------------
 # checkpointing args
@@ -32,28 +35,43 @@ logger.load_logs()
 # optimizer, and lr schedule 
 # ------------------------------
 
-torch.manual_seed(42)
 device = "cuda" if torch.cuda.is_available() else "mps" if hasattr(torch.backends, "mps") and torch.backends.mps.is_available() else "cpu"
 print(f"using device: {device}")
+# Set seed across all device types
+torch.manual_seed(42)
+if "cuda" in device:
+    torch.cuda.manual_seed_all(42)
+if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    torch.mps.manual_seed(42)
 ddp = False
 master_process = True
 
 # batch parameters
-total_batch_size = 64 # TODO: tune, probably needs to be ~1024
-B = 64 if device == "cuda" else 8 if device == "mps" else 1 # TODO: tune 
+total_batch_size = 1024 # TODO: tune, probably needs to be ~1024
+B = 1024 if device == "cuda" else 8 if device == "mps" else 1 
 assert total_batch_size % B == 0, "total_batch_size must be divisible by B"
 embed_accum_steps = total_batch_size // B
-# data loaders
-train_loader = DataLoaderLite(B, 0, 1, split = 'train', verbose = True)
 
 # load configs from checkpoint if available, otherwise use defaults
 text_config, vision_config = TextConfig(), VisionConfig()
 if checkpoint_path:
     update_configs_from_checkpoint(checkpoint_path, text_config, vision_config, device)
 
+# data loader
+train_loader = DataLoader(B=B, block_size=text_config.block_size, img_size=vision_config.img_size, rank=0, world_size=1, split = 'train', verbose = True)
+
+# perf: use TF32 for operations on FP32s
+torch.set_float32_matmul_precision('high')
 # initialize model
 model = CLIP(text_config, vision_config)
 model = model.to(device)
+# perf: compile model
+if "cuda" in device:
+  if master_process: print("compiling model\n-----")
+  model = torch.compile(model)
+  torch.cuda.synchronize() # wait for all kernels to complete
+  if master_process: print("model compiled\n-----")
+
 
 # set up optimizer & lr schedule with warmup & cosine decay
 max_lr = 3e-4 # TODO: update
@@ -86,7 +104,11 @@ if checkpoint_path:
 # evaluate on val dataset
 # ------------------------------
 
-val_loader = DataLoaderLite(B, 0, 1, split = 'val', verbose = True)
+val_loader = DataLoader(B=B, block_size=text_config.block_size, img_size=vision_config.img_size, rank=0, world_size=1, split = 'val', verbose = True)
+
+# tracking init time
+t1 = time.time()
+print(f"init time: {t1 - t0:.2f}s\n-----")
 
 def evaluate(model, device, val_loader):
     t0 = time.time()
@@ -122,16 +144,23 @@ for step in range(start_step, max_steps):
     t0 = time.time()
     model.train()
     optimizer.zero_grad(set_to_none=True)
-    label_embs, image_embs = [], []
-    for _ in range(embed_accum_steps):
+    # label_embs, image_embs = [], []
+    D = model.text_config.out_dim 
+    label_embs = torch.empty((B * embed_accum_steps, D), device=device, dtype=torch.bfloat16)
+    image_embs = torch.empty((B * embed_accum_steps, D), device=device, dtype=torch.bfloat16)
+    for i in range(embed_accum_steps):
         labels, images = train_loader.next_batch()
         labels, images = labels.to(device), images.to(device)
-        label_emb, image_emb = model.embed(labels, images)
-        label_embs.append(label_emb)
-        image_embs.append(image_emb)
-    label_embs = torch.cat(label_embs, dim=0)
-    image_embs = torch.cat(image_embs, dim=0)
-    loss = model.loss(label_embs, image_embs)
+        # perf: autocast to cast some ops to BF16 
+        with torch.autocast(device_type=device, dtype=torch.bfloat16):
+            label_emb, image_emb = model.embed(labels, images)
+        label_embs[i*B:(i+1)*B] = label_emb
+        image_embs[i*B:(i+1)*B] = image_emb
+    # label_embs = torch.cat(label_embs, dim=0)
+    # image_embs = torch.cat(image_embs, dim=0)
+    # perf: autocast to cast some ops to BF16
+    with torch.autocast(device_type=device, dtype=torch.bfloat16):
+        loss = model.loss(label_embs, image_embs)
     loss.backward()
     # TODO: decide if we need gradient clipping 
     norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -144,8 +173,8 @@ for step in range(start_step, max_steps):
     img_per_sec = (B * embed_accum_steps) / dt
     if master_process:
         print(f"step {step} |  trn_loss: {loss.item():.4f} | norm: {norm:.4f} | lr: {lr:.2e} | dt: {dt:.2f}s | img/s: {img_per_sec:.2f}")
-        logger.log(step=step+1, train_loss=loss.item(), lr=lr, grad_norm=norm, dt=dt, imgs_per_sec=img_per_sec)
         if (step + 1) % 10 == 0:
+            logger.log(step=step+1, train_loss=loss.item(), lr=lr, grad_norm=norm, dt=dt, imgs_per_sec=img_per_sec)
             logger.log(step=step+1, val_loss=evaluate(model, device, val_loader))
             logger.save_plot()
             if checkpoint_path:
