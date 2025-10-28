@@ -12,6 +12,7 @@ import io
 import tarfile
 from PIL import Image
 import torch
+import torchvision
 from torchvision import transforms
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -19,16 +20,26 @@ from concurrent.futures import ThreadPoolExecutor
 # image to tensor
 itot = transforms.ToTensor()
 # number of decoding threads to use
-n_proc = min(os.cpu_count() // 2, 32)
+n_workers = min(os.cpu_count() // 2, 12) # diminishing returns beyond 8
+n_prefetch_workers = min(n_workers // 2, 4) # limit prefetch worker
 
 def decode_and_write(idx, img_bytes, token_bytes, images_tensor, labels_tensor):
     """
     parallelizable helper function to decode a pair and write directly to
     pre-allocated tensors (to reduce memory allocation overhead) at index idx
     """
-    img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-    images_tensor[idx] = itot(img)
+    # make writable cpu tensor from jpeg bytes
+    byte_tensor = torch.frombuffer(bytearray(img_bytes), dtype=torch.uint8)
+    # decode to CHW uint8
+    img = torchvision.io.decode_image(
+        byte_tensor,
+        mode=torchvision.io.ImageReadMode.RGB
+    )
+    # convert to float32
+    img = img.float().div_(255.0)
+    images_tensor[idx] = img
     labels_tensor[idx] = torch.load(io.BytesIO(token_bytes), map_location='cpu')
+    # print(f"decoded {idx}")
 
 class DataLoader:
     def __init__(self, B = 1, block_size = 77, img_size = 224, rank = 0, world_size = 1, split = 'train', verbose = True):
@@ -37,7 +48,8 @@ class DataLoader:
         self.img_size = img_size
         self.rank = rank
         self.world_size = world_size
-        self.n_proc = n_proc
+        self.n_workers = n_workers
+        self.n_prefetch_workers = n_prefetch_workers
         self.verbose = verbose
         self.images = None
         self.labels = None
@@ -48,11 +60,12 @@ class DataLoader:
         self.prefetch_executor = ThreadPoolExecutor(max_workers=1)
         self.prefetch = True
 
+
         assert split in ['train', 'val'], "split must be either 'train' or 'val'"
         self.split = split
 
         # data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'clip_data', 'text-to-image-2M')
-        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'clip_data', 'text-to-image-2M-8k') # test smaller shards
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.cache', 'clip_data', 'text-to-image-2M') # test smaller shards
         shards = [f for f in os.listdir(data_dir) if f.startswith(f'text_to_image_{self.split}') and f.endswith('.tar')]
         shards = [os.path.join(data_dir, f) for f in shards]
         self.shards = sorted(shards)
@@ -60,9 +73,11 @@ class DataLoader:
         assert self.shard_count > 0, f"no shards found for {split} split"
         if self.shard_count == 1: 
             self.prefetch = False # don't prefetch if only one shard
+        # TODO: remove this
+        self.prefetch = False
         if self.verbose: 
             print(f"[dataloader-{split}.{rank}] found {self.shard_count} shards for {split} split")
-            print(f"[dataloader-{split}.{rank}] using {n_proc} decoding threads")
+            print(f"[dataloader-{split}.{rank}] using {n_workers} decoding threads")
         # set initial state
         self.reset()
 
@@ -134,7 +149,8 @@ class DataLoader:
             shard_len = blob_len // 2
             images, labels = self.preallocate_tensors(shard_len, prefetch)
             # parallel decode images & labels (writes directly to pre-allocated tensors)
-            with ThreadPoolExecutor(max_workers=self.n_proc) as ex:
+            n_workers = self.n_prefetch_workers if prefetch else self.n_workers
+            with ThreadPoolExecutor(max_workers=n_workers) as ex:
                 futures = [ex.submit(decode_and_write, i, pairs[i][0], pairs[i][1], images, labels) for i in range(shard_len)]
                 # wait for all to complete
                 for future in futures:
@@ -186,7 +202,7 @@ if __name__ == "__main__":
     t1 = time.time()
     print(f"⏱️ initializing DataLoaderLite took {t1 - t0:.2f}s\n-----")
     # timed batches
-    batches = 10
+    batches = 1
     for i in range(batches):
         t0 = time.time()
         labels, images = train_loader.next_batch() 
