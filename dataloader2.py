@@ -39,7 +39,6 @@ def decode_and_write(idx, img_bytes, token_bytes, images_tensor, labels_tensor):
     img = img.float().div_(255.0)
     images_tensor[idx] = img
     labels_tensor[idx] = torch.load(io.BytesIO(token_bytes), map_location='cpu')
-    # print(f"decoded {idx}")
 
 class DataLoader:
     def __init__(self, B = 1, block_size = 77, img_size = 224, rank = 0, world_size = 1, split = 'train', verbose = True):
