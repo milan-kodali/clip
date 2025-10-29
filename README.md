@@ -8,7 +8,7 @@ From-scratch [CLIP](https://openai.com/index/clip/)-like model for tinkering & l
 3. Make dataloader way faster (potentially pre-save tensors)
 4. Run experiments to see how much we can improve
 
-## "Water through the Pipes" Training Runs
+## "Water through the Pipes" Tests
 
 |          | TextDecoder | VisionEncoder |
 |----------|-------------|---------------|
@@ -20,9 +20,11 @@ From-scratch [CLIP](https://openai.com/index/clip/)-like model for tinkering & l
 | img_size |      -      |      224      |
 |patch_size|      -      |       16      |
 
-#### Run 1
+#### Test 1
 *batch=1024, epochs=0.5, max_lr=3e-4*
-*linear warmup for 2% of steps, then cosine decay to 10% of max_lr*
+
+*linear warmup for 2% of steps, then cosine decay down to 10%*
+
 *val_loss after 0.5 epoch: 4.6*
 
 ![run1_loss](./logs/run1_loss.png)
