@@ -41,3 +41,14 @@ def load_checkpoint_state(checkpoint_path, model, optimizer, train_loader, devic
     else:
         print(f"no checkpoint found, starting from scratch")
         return 0
+
+def load_checkpoint_model_only(checkpoint_path, model, device):
+    if os.path.exists(checkpoint_path):
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        state_dict = checkpoint['model_state_dict']
+        # Remove _orig_mod. prefix if present (from compiled models)
+        state_dict = {k.replace('_orig_mod.', ''): v for k, v in state_dict.items()}
+        model.load_state_dict(state_dict)
+        print(f"checkpoint model loaded successfully")
+    else:
+        print(f"no checkpoint found, starting from scratch")
