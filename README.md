@@ -20,6 +20,8 @@ From-scratch [CLIP](https://openai.com/index/clip/)-like model for tinkering & l
 | img_size |      -      |      224      |
 |patch_size|      -      |       16      |
 
+#### Run 1
+*1024 pairs/batch, 0.5 epochs, 3e-4 max_lr, linear warmup for 2% of steps, then cosine decay to 10% of max_lr*
 
 
 ## Files
