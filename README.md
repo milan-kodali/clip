@@ -1,11 +1,24 @@
 # CLIP 
 
-CLIP model for tinkering & learning 
+From-scratch [CLIP](https://openai.com/index/clip/)-like model for tinkering & learning 
 
 ## TODOs
-1. 
+1. Initial training tests & logs
+2. Add evals (eg ImageNet ZeroShot)
+3. Make dataloader way faster (potentially pre-save tensors)
+4. Run experiments to see how much we can improve
 
-## Tests & results 
+## "Water through the Pipes" Training Runs
+
+|          | TextDecoder | VisionEncoder |
+|----------|-------------|---------------|
+| n_layer  |      6      |       8       |
+| n_head   |      8      |       6       |
+| n_embd   |     512     |      768      |
+| out_dim  |     512     |      512      |
+|  block   |      77     |       -       |
+| img_size |      -      |      224      |
+|patch_size|      -      |       16      |
 
 
 
