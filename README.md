@@ -22,10 +22,8 @@ From-scratch [CLIP](https://openai.com/index/clip/)-like model for tinkering & l
 
 #### Test 1
 *batch=1024, epochs=0.5, max_lr=3e-4*
-
 *linear warmup for 2% of steps, then cosine decay down to 10%*
-
-*val_loss after 0.5 epoch: 4.6*
+*val_loss (0.5 epoch): 4.603*
 
 ![run1_loss](./logs/run1_loss.png)
 
@@ -34,15 +32,26 @@ Notes:
 - Gradient norms are quite high still (~5), could consider higher lr
 
 #### Run 2
-*batch=1024, epochs=0.5, max_lr=3e-4*
-*linear warmup for 2% of steps, then cosine decay to 10% of max_lr*
+*batch=1024, epochs=0.5, max_lr=1e-3*
+*linear warmup for 10% of steps, then cosine decay to 10% of max_lr*
+*val_loss (0.4 epoch): 5.311*
+
+![run2_loss](./logs/run2_loss.png)
+
+Notes: 
+- With higher max_lr (1e-3) gradients vanished very quickly
+- With a longer warmup, this is no longer a problem, but convergence is much slower
 
 #### Run 3
-*batch=1024, epochs=0.5, max_lr=3e-4*
+*batch=1024, epochs=2, max_lr=3e-4*
 *linear warmup for 2% of steps, then cosine decay to 10% of max_lr*
+*val_loss (2 epoch): 1.356*
 
+![run3_loss](./logs/run3_loss.png)
 
-
+Notes: 
+- Continuing to converge after 2 epochs → can train for longer
+- Strong loss periodicity → need to shuffle training data
 
 ## Files
 - `clip.ipynb` notebook used to sketch out & test each component 

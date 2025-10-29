@@ -2,6 +2,7 @@
 training metrics logger
 """
 
+import argparse
 import csv
 import os
 import matplotlib.pyplot as plt
@@ -114,3 +115,8 @@ def save_existing_log_plot(log_file, path=None):
     logger.run_name = os.path.basename(log_file).replace('.csv', '')
     return logger.save_plot(path=path)
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Plot training logs from a CSV file')
+    parser.add_argument('log_file', type=str, help='Path to the log CSV file (e.g., .cache/clip_data/logs/run1.csv)')
+    args = parser.parse_args()
+    save_existing_log_plot(args.log_file)
