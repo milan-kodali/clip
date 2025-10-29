@@ -3,10 +3,10 @@
 From-scratch [CLIP](https://openai.com/index/clip/)-like model for tinkering & learning 
 
 ## TODOs
-1. Initial training tests & logs
-2. Add evals (eg ImageNet ZeroShot)
-3. Make dataloader way faster (potentially pre-save tensors)
-4. Run experiments to see how much we can improve
+1. Add evals (eg ImageNet ZeroShot)
+2. Make dataloader way faster (potentially pre-save tensors) & shuffle data
+3. Run experiments to see how much we can improve
+4. Add some sort of cool UI to interact with pretrained model
 
 ## "Water through the Pipes" Tests
 
@@ -25,6 +25,7 @@ From-scratch [CLIP](https://openai.com/index/clip/)-like model for tinkering & l
 - *linear warmup for 2% of steps, then cosine decay down to 10%*
 - *val_loss (0.5 epoch): 4.603*
 ![run1_loss](./logs/run1_loss.png)
+
 Notes: 
 - Likely need to add data shuffling
 - Gradient norms are quite high still (~5), could consider higher lr
@@ -34,6 +35,7 @@ Notes:
 - *linear warmup for 10% of steps, then cosine decay to 10% of max_lr*
 - *val_loss (0.4 epoch): 5.311*
 ![run2_loss](./logs/run2_loss.png)
+
 Notes: 
 - With higher max_lr (1e-3) gradients vanished very quickly
 - With a longer warmup, this is no longer a problem, but convergence is much slower
@@ -43,6 +45,7 @@ Notes:
 - *linear warmup for 2% of steps, then cosine decay to 10% of max_lr*
 - *val_loss (2 epoch): 1.356*
 ![run3_loss](./logs/run3_loss.png)
+
 Notes: 
 - Continuing to converge after 2 epochs → can train for longer
 - Strong loss periodicity → need to shuffle training data
