@@ -21,7 +21,25 @@ From-scratch [CLIP](https://openai.com/index/clip/)-like model for tinkering & l
 |patch_size|      -      |       16      |
 
 #### Run 1
-*1024 pairs/batch, 0.5 epochs, 3e-4 max_lr, linear warmup for 2% of steps, then cosine decay to 10% of max_lr*
+*batch=1024, epochs=0.5, max_lr=3e-4*
+*linear warmup for 2% of steps, then cosine decay to 10% of max_lr*
+*val_loss after 0.5 epoch: 4.6*
+
+![run1_loss](./logs/run1_loss.png)
+
+Notes: 
+- Likely need to add data shuffling
+- Gradient norms are quite high still (~5), could consider higher lr
+
+#### Run 2
+*batch=1024, epochs=0.5, max_lr=3e-4*
+*linear warmup for 2% of steps, then cosine decay to 10% of max_lr*
+
+#### Run 3
+*batch=1024, epochs=0.5, max_lr=3e-4*
+*linear warmup for 2% of steps, then cosine decay to 10% of max_lr*
+
+
 
 
 ## Files
